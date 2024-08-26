@@ -1,29 +1,57 @@
+#Siempre empezamos indicando la version de docker compose, en este caso la version 3
+#oBVIA ESTO PORQUE YA ESTA DEPRECADO DESDE LA V2 DE DOCKER-DESKTOP
 version: '3'
-
+#aqui en servise empezamos a definir nuestros contenedores, nota que si 2 contenedores tienen el mismo nesting, docker se encargara de generar una red de forma automatica
 services:
+#nombre del contenedor de la app, este nombre se lo saca desde el archivo application.properties de spring
+#en ese archivo debe de haber la siguiente linea: spring.aplication.name=app_vet -> de aqui sacamos el nombre para nuestro contenedor
   app_vet:
+  #en el build especificamos el directorio en donde esta almacenado el archivo Dockerfile que va a necesitar para crear una imagen
+  #fijate que si accedes a la carpeta clinica_veterinaria, en la raiz de la carpeta vas a encontrar el archivo Dockerfile
+  #tambien fijate que el archivo docker-compose esta FUERA de la carpeta clinica_veterinaria, es decir que deberias
+  #tener:
+  #clinica_veterinaria_app -> le puse cualquier nombre. De esta carpeta vas a tener 2 archivos
+  # - clinica_veterianria -> en donde esta tu proyecto
+  # - docker-compose -> el archivo docker compose. Fijate que el docker-compose y la carpeta clinica_veterinaria son por asi decirlo HERMANOS
     build: clinica_veterinaria
+    #mem_limit -> especifica cuanta memoria se va a usar para nuestra app, aqui seteamos a 512MB, dependiendo del tamaño y de la
+    #escalabilidad de tu proyecto
     mem_limit: 512m
+    #aca especificamos los puertos que va a usar nuestra app, esto varia dependiendo de la tecnologia, en el caso de Spring
+    #usa el puerto 8080 (tomcat), en el caso de node, usa el puerto 3000.
+    #el primer puerto es el puerto del anfitrion, es decir del puerto de tu computadora fisica, el segundo puerto (separado por ":")
+    #representa el puerto que va a usar docker para mapear el puerto anfitrion, es buena practica colocar manualmente como esta debajo
+    #el puerto que queremos que use docker y no darle esta responsabilidad a el ya que te va a dar un puerto cualquiera.
     ports:
       - "8080:8080"
+    #En este apartado establecemos las variables que usamos en nuestro proyecto, tienen que ser iguales a las que usamos en nuestra app
     environment:
-      DB_URL: jdbc:mysql://clinica_vet:3306/clinica_veterinaria?createDatabaseIfNotExist=true&serverTimezone=UTC
+      #fijate que en "clinica_vet:3306" colocamos el nombre del contenedor que usaremos como db, ya no va el localhost
+      DB_URL: jdbc:mysql://clinica_vet:3306/clinica_veterinaria?createIfNotExist=true&serverTimezone=UTC
       DB_USER_NAME: root
       DB_PASSWORD: 1234
     restart: always
+    #aca agregamos la dependencia, gralmente cuando tenemos 2 contenedores: 1 para nuestra app y otro para nuestra db, el contenedor
+    #de nuestra app dependera si o si del contenedor de la db y esto es porque si no esta levantado, no podremos hacer ninguna consulta
+    #aca le estoy diciendo que el contenedor "app_vet" dependera del contenedor "clinica_vet"
     depends_on:
-      clinica_vet:
-          condition: service_healthy
+      - clinica_vet
+
   clinica_vet:
-    image: mysql:8.0.33 
+    #SIEMPRE la imagen que establezcamos aca tiene que ser la misma que tenemos en el archivo pom.xml
+    image: mysql:8.0.33
     ports:
       - "3307:3306"
+    #el nombre de las variables de entorno estan en dockerhub, cuando buscan la imagen de mysql
     environment:
       MYSQL_ROOT_PASSWORD: 1234
       MYSQL_PASSWORD: 1234
       MYSQL_DATABASE: clinica_veterinaria
     restart: always
+    #Aca establecemos una serie de configuraciones de chequeo para verificar que todo el services
+    #esta correctamente levantado
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s  # Tiempo entre chequeos
       timeout: 10s
-      retries: 10
+      retries: 3  # Número de intentos antes de considerarlo fallido
